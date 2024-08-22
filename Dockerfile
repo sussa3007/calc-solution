@@ -11,4 +11,4 @@ COPY build/libs/*.jar /app/calc-0.0.1.jar
 EXPOSE 8787
 
 # Define entrypoint
-ENTRYPOINT ["java", "-jar", "/app/calc-0.0.1.jar"]
+ENTRYPOINT ["java", "-jar", "/app/calc-0.0.1.jar", "--spring.profiles.active=pro"]

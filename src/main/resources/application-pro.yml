@@ -1,0 +1,57 @@
+server:
+  port: 8787
+  shutdown: GRACEFUL
+spring:
+  datasource:
+    url: ${MAIN_DB_URL_PRO}
+    username: ${MAIN_DB_ID}
+    password: ${MAIN_DB_PW}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 24
+      connection-timeout: 30000
+      validation-timeout: 2000
+      idle-timeout: 60000
+      max-lifetime: 1800000
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  jpa:
+    open-in-view: false
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: none
+    #    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 1000
+  sql:
+    init:
+      mode: never
+logging.level:
+  org.hibernate.SQL: info
+  org:
+    hibernate:
+      type:
+        descriptor:
+          sql:
+            org.hibernate.type.descriptor.sql.BasicBinder : info
+    springframework:
+      web.servlet : info
+springdoc:
+  swagger-ui:
+    path: /docs
+    groups-order: DESC
+    operationsSorter: method
+    disable-swagger-default-url: true
+    display-request-duration: true
+    tags-sorter: alpha
+  api-docs:
+    path: /api-docs
+  show-actuator: true
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+  paths-to-match:
+    - /api/**
+    - /open-api/**
+  show-login-endpoint: false

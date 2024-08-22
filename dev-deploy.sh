@@ -1,9 +1,9 @@
 #!/bin/bash
 
-BUILD=/home/ubuntu/work/calc-server
+BUILD=/home/ubuntu/work/calc-solution
 DEV_JAR=calc-0.0.1.jar
 LOG_PATH=/home/ubuntu/log/calc
-DEPLOY_PATH=/home/ubuntu/work/calc-server/
+DEPLOY_PATH=/home/ubuntu/work/calc-solution/
 
 cd $BUILD || { echo "Failed to change directory to $BUILD"; exit 1; }
 
@@ -43,8 +43,6 @@ sudo cp $BUILD_JAR $EXIST_FILE
 CONTAINER_NAME=web-server-app
 OLD_IMAGES_NAME=web-server-app
 
-# Redis 컨테이너 이름
-REDIS_CONTAINER_NAME=redis_server
 
 # 기존 컨테이너 종료 후 이미지 제거
 OLD_IMAGES=$(sudo docker images -aq --filter "reference=$OLD_IMAGES_NAME")

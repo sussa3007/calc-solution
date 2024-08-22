@@ -55,6 +55,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
+      - /home/ubuntu/work/calc-fe:/calc-fe
     networks:
       - app-network
     depends_on:

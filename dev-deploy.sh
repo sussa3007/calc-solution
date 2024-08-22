@@ -40,7 +40,6 @@ EXIST_FILE=$DEPLOY_PATH/$DEV_JAR
 sudo rm -f $EXIST_FILE
 sudo cp $BUILD_JAR $EXIST_FILE
 
-CONTAINER_NAME=web-server-app
 OLD_IMAGES_NAME=calc-solution_app
 
 
@@ -61,16 +60,10 @@ if [ ! -z "$OLD_IMAGES" ]; then
   echo "Removing old images..."
   sudo docker rmi -f $OLD_IMAGES
 else
-  echo "No images found for reference: $CONTAINER_NAME"
+  echo "No images found for reference: $OLD_IMAGES"
 fi
 
-# 기존 애플리케이션 컨테이너를 중지하고 제거
-if [ "$(sudo docker ps -q -f name=$CONTAINER_NAME)" ]; then
-    echo "Stopping existing container..."
-    sudo docker stop $CONTAINER_NAME
-    echo "Removing existing container..."
-    sudo docker rm $CONTAINER_NAME
-fi
+
 
 # 기존 MySQL 컨테이너를 중지하고 제거
 if [ "$(sudo docker ps -q -f name=$MYSQL_CONTAINER_NAME)" ]; then

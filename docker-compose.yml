@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: web-server-app
     ports:
-      - "8082:8082"
+      - "8787:8787"
 
     depends_on:
       - db

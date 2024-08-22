@@ -41,7 +41,7 @@ sudo rm -f $EXIST_FILE
 sudo cp $BUILD_JAR $EXIST_FILE
 
 CONTAINER_NAME=web-server-app
-OLD_IMAGES_NAME=web-server-app
+OLD_IMAGES_NAME=calc-solution_app
 
 
 # 기존 컨테이너 종료 후 이미지 제거

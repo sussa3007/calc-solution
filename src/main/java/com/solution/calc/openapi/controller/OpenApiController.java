@@ -65,7 +65,8 @@ public class OpenApiController implements OpenApiControllerIfs{
     public ResponseEntity<?> rtpay(HttpServletRequest request) {
 //        String key = "622e0189-7962-40c2-8261-d4714b2bac07";
 //        String key = "ccc7e2f3-94bf-4abc-8d3e-e81131debbf3";
-        String key = "83a660de-77fb-4079-aa84-a0216fdab764";
+//        String key = "83a660de-77fb-4079-aa84-a0216fdab764";
+        String key = "fb6a2819-a740-46cd-928f-0f5c96c11782";
         JSONObject jobj = new JSONObject();
         String rtPay = getPay(key, jobj, request);
         ObjectMapper mapper = new ObjectMapper();
@@ -82,7 +83,7 @@ public class OpenApiController implements OpenApiControllerIfs{
             * }
             * */
             Map map = mapper.readValue(rtPay, Map.class);
-            System.out.println("@@@@response map = "+map);
+            log.info("RTPAY RESPONSE 1 = {}", map);
             depositService.setDepositComplete(map);
         } catch (Exception e) {
             log.error("@@@@ RTPAY ERROR = {}", e.getMessage());
@@ -114,7 +115,7 @@ public class OpenApiController implements OpenApiControllerIfs{
              * }
              * */
             Map map = mapper.readValue(rtPay, Map.class);
-            System.out.println("@@@@response map 2 = "+map);
+            log.info("RTPAY RESPONSE 2 = {}", map);
             depositService.setDepositComplete(map);
         } catch (Exception e) {
             log.error("@@@@ RTPAY ERROR 2 = {}", e.getMessage());
@@ -146,7 +147,7 @@ public class OpenApiController implements OpenApiControllerIfs{
              * }
              * */
             Map map = mapper.readValue(rtPay, Map.class);
-            System.out.println("@@@@response map 3 = "+map);
+            log.info("RTPAY RESPONSE 3 = {}", map);
             depositService.setDepositComplete(map);
         } catch (Exception e) {
             log.error("@@@@ RTPAY ERROR 3 = {}", e.getMessage());

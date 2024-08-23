@@ -5,9 +5,12 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 @RequiredArgsConstructor
 @Configuration
@@ -24,6 +27,9 @@ public class SwaggerConfig {
                 3. 헤더 키(실제 API 요청시) : Authorization / API 명세 페이지 테스트 시 로그인 요청 후 응답 받은 필드 accessToken 값의 "Bearer "를 제거한 키 값을 Authorize 버튼 누른 후 입력. 
                 4. 어드민 화면에서 요청 후 승인 대기 상태 입금 요청 데이터 확인 가능
                 """;
+        Server product = new Server();
+        product.setDescription("product");
+        product.setUrl("https://api.main-gj.com");
 
         Info info = new Info()
                 .version("v0.0.1")
@@ -42,10 +48,12 @@ public class SwaggerConfig {
                         .scheme("Bearer")
                         .bearerFormat("JWT")); // 토큰 형식을 지정하는 임의의 문자(Optional)
 
-        return new OpenAPI()
+        OpenAPI result = new OpenAPI()
                 .info(info)
                 .addSecurityItem(securityRequirement)
                 .components(components);
+        result.setServers(List.of(product));
+        return result;
     }
 
 }

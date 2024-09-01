@@ -92,8 +92,9 @@ public class UserService {
     public User getAgent(Long agentId) {
         if (agentId != null) {
             if (agentId > 0) {
+                log.info("agentId = {}", agentId);
                 return userRepository.findUserByUserId(agentId)
-                        .orElseThrow(() -> new ServiceLogicException(ErrorCode.NOT_FOUND_USER));
+                        .orElse(null);
             } else {
                 return null;
             }

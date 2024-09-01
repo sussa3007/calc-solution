@@ -30,15 +30,11 @@ fi
 
 ./gradlew clean build
 
-BUILD_JAR=$(ls $BUILD/build/libs/calc-0.0.1.jar)
 
 echo "> 현재 시간: $(date)" >> $LOG_PATH/deploy.log
 echo "> dev build 파일명: $DEV_JAR" >> $LOG_PATH/deploy.log
 echo "> dev build 파일 복사" >> $LOG_PATH/deploy.log
 
-EXIST_FILE=$DEPLOY_PATH/$DEV_JAR
-sudo rm -f $EXIST_FILE
-sudo cp $BUILD_JAR $EXIST_FILE
 
 OLD_IMAGES_NAME=calc-solution_app
 

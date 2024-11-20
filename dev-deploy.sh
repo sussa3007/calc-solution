@@ -10,8 +10,8 @@ cd $BUILD || { echo "Failed to change directory to $BUILD"; exit 1; }
 # 스크립트 로그 파일이 없다면 생성
 mkdir -p $LOG_PATH
 
-git fetch --all
-git reset --hard origin/main
+
+
 git checkout main
 git pull origin main
 
@@ -73,20 +73,20 @@ fi
 
 NGINX_CONTAINER_NAME=nginx_server
 # 기존 Nginx 컨테이너를 중지하고 제거
-if [ "$(sudo docker ps -q -f name=NGINX_CONTAINER_NAME)" ]; then
+if [ "$(sudo docker ps -q -f name=$NGINX_CONTAINER_NAME)" ]; then
     echo "Stopping existing NGINX container..."
-    sudo docker stop NGINX_CONTAINER_NAME
+    sudo docker stop $NGINX_CONTAINER_NAME
     echo "Removing existing NGINX container..."
-    sudo docker rm NGINX_CONTAINER_NAME
+    sudo docker rm $NGINX_CONTAINER_NAME
 fi
 
 CERBOT_CONTAINER_NAME=cerbot
 # 기존 Nginx 컨테이너를 중지하고 제거
-if [ "$(sudo docker ps -q -f name=CERBOT_CONTAINER_NAME)" ]; then
+if [ "$(sudo docker ps -q -f name=$CERBOT_CONTAINER_NAME)" ]; then
     echo "Stopping existing CERBOT container..."
-    sudo docker stop CERBOT_CONTAINER_NAME
+    sudo docker stop $CERBOT_CONTAINER_NAME
     echo "Removing existing CERBOT container..."
-    sudo docker rm CERBOT_CONTAINER_NAME
+    sudo docker rm $CERBOT_CONTAINER_NAME
 fi
 
 echo "> Dev DEPLOY_JAR 배포" >> $LOG_PATH/deploy.log

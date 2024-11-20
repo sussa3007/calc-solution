@@ -8,7 +8,7 @@ services:
     container_name: web-server-app
     ports:
       - "8787:8787"
-
+    restart: always
     depends_on:
       - db
     networks:
@@ -46,6 +46,7 @@ services:
 
   nginx:
     image: nginx:latest
+    restart: always
     container_name: nginx_server
     ports:
       - "80:80"
@@ -67,6 +68,7 @@ services:
 
   certbot:
     image: certbot/certbot
+    restart: always
     container_name: certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt

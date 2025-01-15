@@ -1,22 +1,11 @@
 #!/bin/bash
 
-BUILD=/home/ubuntu/work/calc-solution
-DEV_JAR=calc-0.0.1.jar
 LOG_PATH=/home/ubuntu/log/calc
-DEPLOY_PATH=/home/ubuntu/work/calc-solution/
 
-cd $BUILD || { echo "Failed to change directory to $BUILD"; exit 1; }
 
 # 스크립트 로그 파일이 없다면 생성
 mkdir -p $LOG_PATH
 
-
-
-git checkout main
-git pull origin main
-
-chmod 700 gradlew
-sudo chmod -R 755 .
 
 # MySQL 컨테이너 이름
 MYSQL_CONTAINER_NAME=mysql
@@ -28,12 +17,10 @@ if [ ! "$(sudo docker ps -q -f name=$MYSQL_CONTAINER_NAME)" ]; then
     sleep 20  # 컨테이너가 완전히 시작될 때까지 대기
 fi
 
-./gradlew clean build
+
 
 
 echo "> 현재 시간: $(date)" >> $LOG_PATH/deploy.log
-echo "> dev build 파일명: $DEV_JAR" >> $LOG_PATH/deploy.log
-echo "> dev build 파일 복사" >> $LOG_PATH/deploy.log
 
 
 OLD_IMAGES_NAME=calc-solution_app

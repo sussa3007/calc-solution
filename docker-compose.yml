@@ -2,7 +2,7 @@ version: '3.3'
 
 services:
   app:
-    image: sussa1933/max-solution:latest
+    image: sussa1933/calc-solution:latest
     container_name: web-server-app
     ports:
       - "8787:8787"

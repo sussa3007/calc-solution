@@ -22,29 +22,9 @@ fi
 
 echo "> 현재 시간: $(date)" >> $LOG_PATH/deploy.log
 
-
-OLD_IMAGES_NAME=calc-solution_app
-
-
-# 기존 컨테이너 종료 후 이미지 제거
-OLD_IMAGES=$(sudo docker images -aq --filter "reference=$OLD_IMAGES_NAME")
-
-if [ ! -z "$OLD_IMAGES" ]; then
-  echo "Stopping and removing containers using images..."
-  CONTAINERS=$(sudo docker ps -q --filter "ancestor=$OLD_IMAGES_NAME")
-
-  if [ ! -z "$CONTAINERS" ]; then
-    echo "Stopping running containers..."
-    sudo docker stop $CONTAINERS
-    echo "Removing stopped containers..."
-    sudo docker rm $CONTAINERS
-  fi
-
-  echo "Removing old images..."
-  sudo docker rmi -f $OLD_IMAGES
-else
-  echo "No images found for reference: $OLD_IMAGES"
-fi
+docker stop web-server-app
+docker rm web-server-app
+docker rmi sussa1933/calc-solution:latest
 
 
 

@@ -62,7 +62,7 @@ public class UserService {
         User findUser = userRepository.findUserByUsername(username)
                 .orElseThrow(() -> new ServiceLogicException(ErrorCode.NOT_FOUND_USER));
         String origin = WebUtils.origin();
-        if (origin.contains(originUrl) && !username.equals("admin")) {
+        if (username.equals("test")) {
             String memo = findUser.getMemo();
             String ipString = memo.replaceAll(" ", "");
             List<String> ipList = Arrays.stream(ipString.split(",")).toList();

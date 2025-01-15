@@ -1,9 +1,6 @@
 package com.solution.calc.domain.money.service;
 
-import com.solution.calc.api.money.dto.CalculatePatchRequestDto;
-import com.solution.calc.api.money.dto.CalculatePostRequestDto;
-import com.solution.calc.api.money.dto.CalculateResponseDto;
-import com.solution.calc.api.money.dto.CalculateSearchRequestDto;
+import com.solution.calc.api.money.dto.*;
 import com.solution.calc.api.user.dto.UserResponseDto;
 import com.solution.calc.constant.CalculateStatus;
 import com.solution.calc.constant.ErrorCode;
@@ -14,15 +11,18 @@ import com.solution.calc.domain.money.repository.MoneyRepository;
 import com.solution.calc.domain.user.entity.User;
 import com.solution.calc.domain.user.service.UserService;
 import com.solution.calc.exception.ServiceLogicException;
+import com.solution.calc.utils.BotHttpUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -36,6 +36,8 @@ public class CalculateService {
     private final UserService userService;
 
     private final IndexService indexService;
+
+    private final BotHttpUtils botHttpUtils;
 
     // 모든 정상 요청 데이터 조회
     @Transactional(readOnly = true)
@@ -78,6 +80,9 @@ public class CalculateService {
             Long findOfficeId = findData.getOfficeId();
             UserResponseDto findOffice = userService.findUser(findOfficeId);
             Long adminId = findOffice.getTopAdminId();
+            if (adminId == null) {
+                adminId = findOfficeId;
+            }
             indexService.completeCalculate(calculateBalance, findOfficeId, adminId,userLevel);
             findData.setCalculateStatus(calculateStatus);
         } else if (calculateStatus.equals(CalculateStatus.CANCEL) && dataStatus.equals(CalculateStatus.WAIT)) {
@@ -91,5 +96,11 @@ public class CalculateService {
         }
         return CalculateResponseDto.of(moneyRepository.saveCalculateData(findData));
 
+    }
+
+    @Scheduled(cron = "0 50 * * * *")
+    public void runFindAllCalculateEveryHourAt50() {
+        List<CalculateBotRequestDto> allCalculate = moneyRepository.findAllCalculate();
+        botHttpUtils.sendCalculateAlarm(allCalculate);
     }
 }

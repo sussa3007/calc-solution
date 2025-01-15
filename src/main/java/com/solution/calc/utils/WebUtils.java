@@ -79,5 +79,34 @@ public class WebUtils {
         return ip;
     }
 
+    public static String hostname() {
+        HttpServletRequest request = request();
+        if (request == null) {
+            return "unknown(null)";
+        }
+
+        try {
+            return request.getServerName();
+        } catch (Exception e) {
+            log.info("호스트 네임 정보를 가져오는 중 오류가 발생하였습니다. - {}", e.getMessage());
+            log.info("{}", ErrorUtils.trace(e.getStackTrace()));
+            return "unknown(error)";
+        }
+    }
+    public static String origin() {
+        HttpServletRequest request = request();
+        if (request == null) {
+            return "unknown(null)";
+        }
+
+        try {
+            String origin = request.getHeader("Origin");
+            return (origin != null && !origin.isEmpty()) ? origin : "unknown(header not present)";
+        } catch (Exception e) {
+            log.info("Origin 정보를 가져오는 중 오류가 발생하였습니다. - {}", e.getMessage());
+            log.info("{}", ErrorUtils.trace(e.getStackTrace()));
+            return "unknown(error)";
+        }
+    }
 
 }

@@ -126,7 +126,7 @@ public interface DepositApiControllerIfs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "정상 응답",
                     content = {@Content(mediaType = "application/json"
-                            , schema = @Schema(implementation = DepositResponse.class)
+                            , schema = @Schema(implementation = DepositApiResponse.class)
                     )}),
             @ApiResponse(responseCode = "400", description = "BAD REQUEST",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
@@ -139,8 +139,8 @@ public interface DepositApiControllerIfs {
     );
 
     // 입금 요청 생성
-    class DepositResponse extends ResponseDto<DepositResponseDto> {
-    }
+    class DepositResponse extends ResponseDto<DepositResponseDto> { }
+    class DepositApiResponse extends ResponseDto<DepositApiResponseDto> { }
     @Operation(summary = "입금 데이터 생성(외부)", description = """
             - 로그인 요청 후 얻은 Access Token 값 헤더에 넣어 요청
             - 로그인 시 발급 받은 Access Token 만료 기한 30일
@@ -151,7 +151,7 @@ public interface DepositApiControllerIfs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "정상 응답",
                     content = {@Content(mediaType = "application/json"
-                            , schema = @Schema(implementation = DepositResponse.class)
+                            , schema = @Schema(implementation = DepositApiResponse.class)
                     )})
 //            ,
 //            @ApiResponse(responseCode = "400", description = "BAD REQUEST",

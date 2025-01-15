@@ -5,14 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solution.calc.api.money.dto.DepositExcelDto;
 import com.solution.calc.api.money.dto.DepositExcelSearchRequestDto;
 import com.solution.calc.constant.ErrorCode;
+import com.solution.calc.domain.money.service.CalculateService;
 import com.solution.calc.domain.money.service.DepositService;
+import com.solution.calc.domain.rtpay.entity.RtpayKey;
+import com.solution.calc.domain.rtpay.service.RtpayKeyService;
 import com.solution.calc.domain.user.service.UserService;
 import com.solution.calc.dto.ResponseDto;
 import com.solution.calc.dto.Result;
 import com.solution.calc.exception.ServiceLogicException;
+import com.solution.calc.openapi.dto.AutoDepositRequestDto;
 import com.solution.calc.openapi.dto.LoginApiResponseDto;
 import com.solution.calc.openapi.dto.LoginDto;
+import com.solution.calc.openapi.dto.TokenApiResponseDto;
+import com.solution.calc.utils.BotHttpUtils;
 import com.solution.calc.utils.ExcelUtils;
+import com.solution.calc.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,16 +34,14 @@ import org.json.JSONObject;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/open-api")
@@ -50,6 +55,8 @@ public class OpenApiController implements OpenApiControllerIfs{
 
     private final ExcelUtils excelUtils;
 
+    private final RtpayKeyService rtpayKeyService;
+
     @Override
     @PostMapping("/login")
     public ResponseEntity<?> login(
@@ -61,47 +68,25 @@ public class OpenApiController implements OpenApiControllerIfs{
     }
 
     @Override
-    @PostMapping("/rtpay")
-    public ResponseEntity<?> rtpay(HttpServletRequest request) {
-//        String key = "622e0189-7962-40c2-8261-d4714b2bac07";
-//        String key = "ccc7e2f3-94bf-4abc-8d3e-e81131debbf3";
-//        String key = "83a660de-77fb-4079-aa84-a0216fdab764";
-        String key = "fb6a2819-a740-46cd-928f-0f5c96c11782";
-        JSONObject jobj = new JSONObject();
-        String rtPay = getPay(key, jobj, request);
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            /*`
-            * {
-            *  RCODE=200,
-            *  MNO=0,
-            *  RPAY=1000,
-            *  RNAME=홍길동,
-            *  RTEXT=입출금내역 알림 [입금] 1,000원 홍길동 114-******-04-050 10/10 17:21,
-            *  RBANK=신한은행,
-            *  RNUMBER=114-******-04-050
-            * }
-            * */
-            Map map = mapper.readValue(rtPay, Map.class);
-            log.info("RTPAY RESPONSE 1 = {}", map);
-            depositService.setDepositComplete(map);
-        } catch (Exception e) {
-            log.error("@@@@ RTPAY ERROR = {}", e.getMessage());
-
-        }
-        return ResponseEntity.ok(Map.of(
-                "RCODE","200",
-                "PCHK", "OK"
-        ));
+    @PostMapping("/token")
+    public ResponseEntity<?> loginApi(LoginDto loginDto) {
+        TokenApiResponseDto loginResponseDto = userService.apiLogin(loginDto);
+        ResponseDto<TokenApiResponseDto> response = ResponseDto.of(loginResponseDto, Result.ok());
+        return ResponseEntity.ok().body(response);
     }
 
-    @PostMapping("/rtpay-2")
+    @PostMapping("/rtpay/basic/v2")
     @Hidden
-    public ResponseEntity<?> rtpaytwo(HttpServletRequest request) {
-        String key = "41d44662-9670-4386-a6d0-f451180983c7";
+    public ResponseEntity<?> rtpayBasicV2(HttpServletRequest request) {
         JSONObject jobj = new JSONObject();
-        String rtPay = getPay(key, jobj, request);
         ObjectMapper mapper = new ObjectMapper();
+        String rtPay = "";
+
+        String regPkey = request.getParameter("regPkey");
+        log.info("regPkey = {}", regPkey);
+        Optional<RtpayKey> opOffice = rtpayKeyService.getOpOffice(regPkey);
+        rtPay = getPay(regPkey, jobj, request);
+
         try {
             /*`
              * {
@@ -115,25 +100,33 @@ public class OpenApiController implements OpenApiControllerIfs{
              * }
              * */
             Map map = mapper.readValue(rtPay, Map.class);
-            log.info("RTPAY RESPONSE 2 = {}", map);
-            depositService.setDepositComplete(map);
+            opOffice.ifPresent(rtpayKey -> map.put("office", rtpayKey.getOfficeUsername()));
+            log.info("@@@@ RTPAY RESPONSE BASIC V2= {}", map);
+            depositService.setDepositCompleteForBasic(map);
+            return ResponseEntity.ok(Map.of(
+                    "RCODE","200",
+                    "PCHK", "OK"
+            ));
         } catch (Exception e) {
-            log.error("@@@@ RTPAY ERROR 2 = {}", e.getMessage());
-
+            log.error("@@@@ RTPAY ERROR BASIC V2 = {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(Map.of(
-                "RCODE","200",
-                "PCHK", "OK"
-        ));
+
     }
 
-    @PostMapping("/rtpay-3")
+
+    @PostMapping("/rtpay/v2")
     @Hidden
-    public ResponseEntity<?> rtpaythree(HttpServletRequest request) {
-        String key = "9ce048a1-9535-49be-8986-37ef48d9b2a6";
+    public ResponseEntity<?> rtpayV2(HttpServletRequest request) {
         JSONObject jobj = new JSONObject();
-        String rtPay = getPay(key, jobj, request);
         ObjectMapper mapper = new ObjectMapper();
+        String rtPay = "";
+
+        String regPkey = request.getParameter("regPkey");
+        log.info("regPkey = {}", regPkey);
+        Optional<RtpayKey> opOffice = rtpayKeyService.getOpOffice(regPkey);
+        rtPay = getPay(regPkey, jobj, request);
+
         try {
             /*`
              * {
@@ -147,16 +140,69 @@ public class OpenApiController implements OpenApiControllerIfs{
              * }
              * */
             Map map = mapper.readValue(rtPay, Map.class);
-            log.info("RTPAY RESPONSE 3 = {}", map);
+            if (opOffice.isPresent()) {
+                map.put("office", opOffice.get().getOfficeUsername());
+            }
+            log.info("@@@@ RTPAY RESPONSE V2= {}", map);
             depositService.setDepositComplete(map);
+            return ResponseEntity.ok(Map.of(
+                    "RCODE","200",
+                    "PCHK", "OK"
+            ));
         } catch (Exception e) {
-            log.error("@@@@ RTPAY ERROR 3 = {}", e.getMessage());
+            log.error("@@@@ RTPAY ERROR V2 = {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+
+        }
+
+    }
+    @PostMapping("/rtpay/v2/auto")
+    @Hidden
+    public ResponseEntity<?> rtpayV2Auto(HttpServletRequest request) {
+        JSONObject jobj = new JSONObject();
+        ObjectMapper mapper = new ObjectMapper();
+        String rtPay = "";
+
+        String regPkey = request.getParameter("regPkey");
+        log.info("regPkey = {}", regPkey);
+        String office = rtpayKeyService.getOffice(regPkey);
+        rtPay = getPay(regPkey, jobj, request);
+
+        try {
+            /*`
+             * {
+             *  RCODE=200,
+             *  MNO=0,
+             *  RPAY=1000,
+             *  RNAME=홍길동,
+             *  RTEXT=입출금내역 알림 [입금] 1,000원 홍길동 114-******-04-050 10/10 17:21,
+             *  RBANK=신한은행,
+             *  RNUMBER=114-******-04-050
+             * }
+             * */
+            Map map = mapper.readValue(rtPay, Map.class);
+            map.put("office", office);
+            log.info("@@@@ RTPAY RESPONSE V2= {}", map);
+            depositService.autoDeposit(map);
+        } catch (Exception e) {
+            log.error("@@@@ RTPAY ERROR V2 = {}", e.getMessage());
 
         }
         return ResponseEntity.ok(Map.of(
                 "RCODE","200",
                 "PCHK", "OK"
         ));
+    }
+
+    @PostMapping("/deposit/auto")
+    @Hidden
+    public ResponseEntity<?> depositAuto(@RequestBody AutoDepositRequestDto requestDto) {
+        userService.verifyUser(requestDto);
+        boolean result = depositService.autoDeposit(requestDto);
+        if (!result) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok().build();
     }
 
 

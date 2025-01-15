@@ -42,5 +42,8 @@ public interface MoneyRepository {
 
     MoneyIndexDto findToday(Long userId, UserLevel userLevel);
 
+    boolean isFirstDeposit(String basicUsername);
+
+    List<CalculateBotRequestDto> findAllCalculate();
 
 }

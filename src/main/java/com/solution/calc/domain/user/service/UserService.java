@@ -7,15 +7,20 @@ import com.solution.calc.constant.*;
 import com.solution.calc.domain.index.entity.IndexData;
 import com.solution.calc.domain.index.service.IndexService;
 import com.solution.calc.domain.log.service.LogService;
+import com.solution.calc.domain.rtpay.service.RtpayKeyService;
 import com.solution.calc.domain.user.entity.BasicUser;
 import com.solution.calc.domain.user.entity.User;
 import com.solution.calc.domain.user.repository.UserRepository;
 import com.solution.calc.exception.ServiceLogicException;
+import com.solution.calc.openapi.dto.AutoDepositRequestDto;
 import com.solution.calc.openapi.dto.LoginApiResponseDto;
 import com.solution.calc.openapi.dto.LoginDto;
+import com.solution.calc.openapi.dto.TokenApiResponseDto;
 import com.solution.calc.utils.IndexUtils;
+import com.solution.calc.utils.WebUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -25,7 +30,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -43,17 +51,53 @@ public class UserService {
 
     private final LogService logService;
 
+    private final RtpayKeyService rtpayKeyService;
+    @Value("${PRO_HOST}")
+    private String originUrl;
+
 
     public LoginApiResponseDto userLogin(LoginDto loginDto) {
         String username = loginDto.getUsername();
         String password = loginDto.getPassword();
         User findUser = userRepository.findUserByUsername(username)
                 .orElseThrow(() -> new ServiceLogicException(ErrorCode.NOT_FOUND_USER));
-        UserStatus userStatus = findUser.getUserStatus();
+        String origin = WebUtils.origin();
+        if (origin.contains(originUrl) && !username.equals("admin")) {
+            String memo = findUser.getMemo();
+            String ipString = memo.replaceAll(" ", "");
+            List<String> ipList = Arrays.stream(ipString.split(",")).toList();
+            String currentIp = WebUtils.ip().replaceAll(" ", "");
+            if (!ipList.contains(currentIp)) {
+                throw new ServiceLogicException(ErrorCode.ACCESS_DENIED, "접근 권한이 없습니다.");
+            }
+        }
         if (password.equals(findUser.getPassword()) || passwordEncoder.matches(password, findUser.getPassword())) {
             Token token = tokenizer.delegateToken(findUser);
             return LoginApiResponseDto.of(token.getAccessToken(), findUser);
         } else {
+            throw new ServiceLogicException(ErrorCode.WRONG_PASSWORD);
+        }
+    }
+
+    public TokenApiResponseDto apiLogin(LoginDto loginDto) {
+        String username = loginDto.getUsername();
+        String password = loginDto.getPassword();
+        User findUser = userRepository.findUserByUsername(username)
+                .orElseThrow(() -> new ServiceLogicException(ErrorCode.NOT_FOUND_USER));
+        if (password.equals(findUser.getPassword()) || passwordEncoder.matches(password, findUser.getPassword())) {
+            Token token = tokenizer.delegateToken(findUser);
+            return TokenApiResponseDto.of(token.getAccessToken(), findUser);
+        } else {
+            throw new ServiceLogicException(ErrorCode.WRONG_PASSWORD);
+        }
+    }
+
+    public void verifyUser(AutoDepositRequestDto requestDto) {
+        String username = requestDto.getUsername();
+        String password = requestDto.getPassword();
+        User findUser = userRepository.findUserByUsername(username)
+                .orElseThrow(() -> new ServiceLogicException(ErrorCode.NOT_FOUND_USER));
+        if (!(password.equals(findUser.getPassword()) || passwordEncoder.matches(password, findUser.getPassword()))) {
             throw new ServiceLogicException(ErrorCode.WRONG_PASSWORD);
         }
     }
@@ -134,6 +178,12 @@ public class UserService {
         }
         updateUser.setTotalCommission(totalCommission);
         User saveUser = userRepository.saveUser(updateUser);
+        String rtpayKey = dto.getRtpayKey();
+        String resultKey = "임시 값"+UUID.randomUUID().toString().substring(0, 10);
+        if (rtpayKey != null && !rtpayKey.isBlank()) {
+            resultKey = rtpayKey.replaceAll(" ", "");
+        }
+        rtpayKeyService.createAndUpdateRtpayKey(saveUser.getUsername(), resultKey);
         return UserResponseDto.of(saveUser);
     }
 
@@ -202,7 +252,10 @@ public class UserService {
     public UserResponseDto findUser(Long userId) {
         User findUser = userRepository.findUserByUserId(userId)
                 .orElseThrow(() -> new ServiceLogicException(ErrorCode.NOT_FOUND_USER));
-        return UserResponseDto.of(findUser);
+        UserResponseDto userResponseDto = UserResponseDto.of(findUser);
+        String rtpayKey = rtpayKeyService.getRtpayKey(userResponseDto.getUsername());
+        userResponseDto.setRtpayKey(rtpayKey);
+        return userResponseDto;
     }
 
     public User findUserEntity(Long userId) {
@@ -238,8 +291,10 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public Page<UserResponseDto> findAllUser(int page) {
-        return userRepository.findAllAdmin(PageRequest.of(page, 500))
+    public Page<UserResponseDto> findAllUser(int page, User user) {
+        UserLevel userLevel = user.getUserLevel();
+        Long userId = user.getUserId();
+        return userRepository.findAllAdmin(PageRequest.of(page, 500), userLevel, userId)
                 .map(UserResponseDto::of);
     }
 

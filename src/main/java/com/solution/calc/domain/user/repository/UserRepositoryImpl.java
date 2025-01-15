@@ -2,6 +2,7 @@ package com.solution.calc.domain.user.repository;
 
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.JPQLQuery;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.solution.calc.api.money.dto.CalculateResponseDto;
 import com.solution.calc.api.user.dto.BasicUserResponseDto;
 import com.solution.calc.api.user.dto.BasicUserSearchDto;
@@ -30,11 +31,14 @@ public class UserRepositoryImpl extends QuerydslRepositorySupport implements Use
     private final BasicUserJpaRepository basicUserJpaRepository;
 
     private final BasicUserQueryRepository basicUserQueryRepository;
-    public UserRepositoryImpl(UserJpaRepository userJpaRepository, BasicUserJpaRepository basicUserJpaRepository, BasicUserQueryRepository basicUserQueryRepository) {
+
+    private final JPAQueryFactory queryFactory;
+    public UserRepositoryImpl(UserJpaRepository userJpaRepository, BasicUserJpaRepository basicUserJpaRepository, BasicUserQueryRepository basicUserQueryRepository, JPAQueryFactory queryFactory) {
         super(User.class);
         this.userJpaRepository = userJpaRepository;
         this.basicUserJpaRepository = basicUserJpaRepository;
         this.basicUserQueryRepository = basicUserQueryRepository;
+        this.queryFactory = queryFactory;
     }
 
     QUser user = QUser.user;
@@ -67,6 +71,19 @@ public class UserRepositoryImpl extends QuerydslRepositorySupport implements Use
     @Override
     public Page<User> findAllAdmin(Pageable pageable) {
         return userJpaRepository.findAll(pageable);
+    }
+
+    @Override
+    public Page<User> findAllAdmin(Pageable pageable, UserLevel userLevel, Long userId) {
+        if (userLevel.equals(UserLevel.ADMIN)) {
+            return userJpaRepository.findAll(pageable);
+        } else {
+            User findOffice = Optional.ofNullable(queryFactory.select(user)
+                    .from(user)
+                    .where(user.userId.eq(userId))
+                    .fetchOne()).orElseThrow(() -> new ServiceLogicException(ErrorCode.NOT_FOUND_USER));
+            return new PageImpl<>(List.of(findOffice), pageable, 1L);
+        }
     }
 
     @Override

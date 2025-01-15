@@ -25,6 +25,7 @@ public class UserResponseDto {
     private String nickName;
 
     private String memo;
+    private String rtpayKey;
 
     private UserStatus userStatus;
 

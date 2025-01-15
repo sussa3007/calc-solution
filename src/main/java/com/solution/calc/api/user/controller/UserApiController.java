@@ -39,8 +39,11 @@ public class UserApiController implements UserApiControllerIfs{
 
     @Override
     @GetMapping("/admin")
-    public ResponseEntity<PageResponseDto<?>> getAdmin(int page) {
-        Page<UserResponseDto> admin = userService.findAllUser(page);
+    /*
+    * TODO 회원권한 따라 응답값 다르게 변경
+    * */
+    public ResponseEntity<PageResponseDto<?>> getAdmin(int page, User user) {
+        Page<UserResponseDto> admin = userService.findAllUser(page, user);
         PageResponseDto<List<UserResponseDto>> response = PageResponseDto.of(admin, admin.getContent(), Result.ok());
         return ResponseEntity.ok(response);
     }

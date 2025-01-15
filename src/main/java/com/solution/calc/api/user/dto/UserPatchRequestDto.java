@@ -30,6 +30,9 @@ public class UserPatchRequestDto {
     @Schema(description = "회원 메모, 차단 이유 등",requiredMode = Schema.RequiredMode.REQUIRED)
     private String memo;
 
+    @Schema(description = "비연동 방식 업체 RTPay Key 값",requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String rtpayKey;
+
     @Schema(description = "회원 상태",requiredMode = Schema.RequiredMode.REQUIRED)
     private UserStatus userStatus;
 

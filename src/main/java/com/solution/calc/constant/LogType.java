@@ -8,6 +8,7 @@ public enum LogType {
     USER_MONEY_COLLECT("[회원 잔액 회수]"),
     USER_MONEY_PAYMENT("[회원 잔액 지급]"),
     DEPOSIT_COMPLETE_CANCEL("[입금 완료 건 취소]"),
+    CREATE_DEPOSIT_ERROR("[입금 데이터 생성중 에러]"),
     INSPECTION_ACTIVE("[점검중 활성화]"),
     INSPECTION_INACTIVE("[점검중 비활성화]");
 
@@ -25,6 +26,15 @@ public enum LogType {
                 "님에 대한" +
                 logType.getMessage() +
                 " 작업을 하였습니다\n";
+        return log;
+    }
+    public static String createErrorLog(String activeUser, String targetUser, LogType logType) {
+        String log = activeUser +
+                "님이 " +
+                targetUser +
+                "님에 대한" +
+                logType.getMessage() +
+                " 작업중 에러발생\n";
         return log;
     }
 

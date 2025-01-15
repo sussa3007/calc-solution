@@ -1,7 +1,9 @@
 package com.solution.calc.domain.money.repository;
 
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPQLQuery;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.solution.calc.api.money.dto.*;
 import com.solution.calc.constant.CalculateStatus;
 import com.solution.calc.constant.DepositStatus;
@@ -9,8 +11,12 @@ import com.solution.calc.constant.ErrorCode;
 import com.solution.calc.constant.UserLevel;
 import com.solution.calc.domain.money.entity.CalculateData;
 import com.solution.calc.domain.money.entity.DepositData;
+import com.solution.calc.domain.money.entity.QCalculateData;
 import com.solution.calc.domain.money.entity.QDepositData;
+import com.solution.calc.domain.user.entity.QUser;
+import com.solution.calc.domain.user.entity.User;
 import com.solution.calc.exception.ServiceLogicException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -34,15 +40,21 @@ public class MoneyRepositoryImpl extends QuerydslRepositorySupport implements Mo
 
     private final CalculateQueryDslRepository calculateQueryDslRepository;
 
+    private final JPAQueryFactory queryFactory;
+
+    @Value("${SYSTEM_PROPERTY}")
+    private String systemProperty;
+
     public MoneyRepositoryImpl(
             CalculateJpaRepository calculateJpaRepository,
             DepositJpaRepository depositJpaRepository,
-            CalculateQueryDslRepository calculateQueryDslRepository
+            CalculateQueryDslRepository calculateQueryDslRepository, JPAQueryFactory queryFactory
     ) {
         super(DepositData.class);
         this.calculateJpaRepository = calculateJpaRepository;
         this.depositJpaRepository = depositJpaRepository;
         this.calculateQueryDslRepository = calculateQueryDslRepository;
+        this.queryFactory = queryFactory;
     }
 
     QDepositData depositData = QDepositData.depositData;
@@ -84,7 +96,7 @@ public class MoneyRepositoryImpl extends QuerydslRepositorySupport implements Mo
 
         if (nickName != null) {
             query.where(
-                    depositData.basicUserNickName.containsIgnoreCase(nickName)
+                    depositData.basicUserNickName.containsIgnoreCase(nickName).or(depositData.txnId.containsIgnoreCase(nickName))
             );
         }
         if (startAt != null && endAt != null) {
@@ -287,6 +299,14 @@ public class MoneyRepositoryImpl extends QuerydslRepositorySupport implements Mo
         }
     }
 
+    @Override
+    public boolean isFirstDeposit(String basicUsername) {
+        return getDepositQuery().where(
+                depositData.basicUsername.eq(basicUsername)
+                        .and(depositData.depositStatus.eq(DepositStatus.COMPLETE))
+        ).fetchFirst() == null;
+    }
+
     private JPQLQuery<MoneyDto> getDepositTodayQuery() {
         return from(depositData)
                 .select(
@@ -296,6 +316,65 @@ public class MoneyRepositoryImpl extends QuerydslRepositorySupport implements Mo
                                 depositData.resultCommission.sum()
                         )
                 );
+    }
+
+    @Override
+    public List<CalculateBotRequestDto> findAllCalculate() {
+        QUser user = QUser.user;
+        QDepositData depositData = QDepositData.depositData;
+        QCalculateData calculateData = QCalculateData.calculateData;
+
+        // 예: 오늘 날짜 필터용 (LocalDateTime now = LocalDateTime.now();)
+        LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1).minusNanos(1);
+
+        // office 리스트 준비 (이미 존재하는 코드 가정)
+        List<User> findOffice = queryFactory.select(user)
+                .from(user)
+                .where(user.userLevel.eq(UserLevel.OFFICE))
+                .fetch();
+        List<Long> officeIds = findOffice.stream()
+                .filter(o -> !o.getUsername().equals("office1"))
+                .filter(o -> !o.getUsername().equals("office2"))
+                .map(User::getUserId)
+                .toList();
+
+        // depositData와 calculateData를 officeId 기준으로 조인 혹은 서브쿼리 형태로 합산
+        // 여기서는 left join으로 묶고, groupBy로 officeId별로 합산한 예시를 듭니다.
+
+        return queryFactory
+                .select(new QCalculateBotRequestDto(
+                        Expressions.constant(systemProperty),
+                        user.username.as("officeId"), // officeUsername을 officeId로 쓸 경우 수정 필요
+                        // totalDepositAmount: 오늘 해당 office에 해당하는 depositBalance 총합
+                        queryFactory.select(depositData.depositBalance.sum().coalesce(BigDecimal.ZERO))
+                                .from(depositData)
+                                .where(depositData.createAt.between(startOfDay, endOfDay)
+                                        .and(depositData.officeId.eq(user.userId))
+                                        .and(depositData.depositStatus.eq(DepositStatus.COMPLETE))),
+                        // totalCalculateAmount: 오늘 해당 office에 해당하는 resultCommission 총합
+                        queryFactory.select(depositData.resultCommission.sum().coalesce(BigDecimal.ZERO))
+                                .from(depositData)
+                                .where(depositData.createAt.between(startOfDay, endOfDay)
+                                        .and(depositData.officeId.eq(user.userId))
+                                        .and(depositData.depositStatus.eq(DepositStatus.COMPLETE))),
+                        // totalWithdrawAmount: 오늘 해당 office에 해당하는 calculateBalance 총합
+                        queryFactory.select(calculateData.calculateBalance.sum().coalesce(BigDecimal.ZERO))
+                                .from(calculateData)
+                                .where(calculateData.createAt.between(startOfDay, endOfDay)
+                                        .and(calculateData.officeId.eq(user.userId))
+                                        .and(calculateData.calculateStatus.eq(CalculateStatus.COMPLETE))
+                                )
+                        ,
+                        // remainingOfficeAmount: 해당 office의 현재 balance
+                        user.balance.coalesce(BigDecimal.ZERO),
+                        // status: office의 userStatus
+                        user.userStatus.stringValue()
+                ))
+                .from(user)
+                .where(user.userId.in(officeIds))
+                .fetch();
+
     }
 
 

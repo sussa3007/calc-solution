@@ -38,7 +38,7 @@ public interface UserApiControllerIfs {
             @PathVariable @Parameter(description = "회원의 식별자", required = true) Long userId
     );
 
-    @Operation(summary = "전체 회원 정보 요청(관리자)", description = "전체 관리자, 기업 회원, 에이전시 요청")
+    @Operation(summary = "전체 회원 정보 요청(관리자, 기업)", description = "전체 관리자, 기업 회원, 에이전시 요청")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "정상 응답",
                     content = {@Content(mediaType = "application/json")}),
@@ -48,7 +48,8 @@ public interface UserApiControllerIfs {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
     })
     ResponseEntity<PageResponseDto<?>> getAdmin(
-            @RequestParam(defaultValue = "0") int page
+            @RequestParam(defaultValue = "0") int page,
+            @UserSession @Parameter(hidden = true) User user
     );
 
     @Operation(summary = "전체 에이전트 정보(관리자)", description = "전체 에이전트 정보")

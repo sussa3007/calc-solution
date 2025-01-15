@@ -61,21 +61,21 @@ public class DepositApiController implements DepositApiControllerIfs {
     @Override
     @GetMapping("/tx/{txnId}")
     public ResponseEntity<ResponseDto<?>> getDepositByTxnId(String txnId, User user) {
-        DepositResponseDto response = depositService.findDepositByTx(txnId);
+        DepositApiResponseDto response = depositService.findDepositByTx(txnId);
         return ResponseEntity.ok(ResponseDto.of(response, Result.ok()));
     }
 
     @Override
     @PostMapping
     public ResponseEntity<ResponseDto<?>> postDeposit(DepositPostRequestDto requestDto, User user) {
-        DepositResponseDto response = depositService.createDeposit(requestDto, user.getUserId(), user.getUserLevel());
+        DepositApiResponseDto response = depositService.createDeposit(requestDto, user.getUserId(), user.getUserLevel());
         return ResponseEntity.ok(ResponseDto.of(response, Result.ok()));
     }
 
     @Override
     @PatchMapping
     public ResponseEntity<ResponseDto<?>> patchDeposit(DepositPatchRequestDto requestDto, User user) {
-        DepositResponseDto response = depositService.patchDeposit(requestDto, user.getUserId(), user.getUserLevel());
+        DepositResponseDto response = depositService.patchDeposit(requestDto, user.getUserLevel());
         return ResponseEntity.ok(ResponseDto.of(response, Result.ok()));
     }
 

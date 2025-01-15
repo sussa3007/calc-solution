@@ -3,6 +3,7 @@ package com.solution.calc.domain.user.repository;
 import com.solution.calc.api.user.dto.BasicUserResponseDto;
 import com.solution.calc.api.user.dto.BasicUserSearchDto;
 import com.solution.calc.api.user.dto.UserResponseDto;
+import com.solution.calc.constant.UserLevel;
 import com.solution.calc.domain.user.entity.BasicUser;
 import com.solution.calc.domain.user.entity.User;
 import org.springframework.data.domain.Page;
@@ -23,6 +24,7 @@ public interface UserRepository {
     Optional<User> findUserByUsername(String username);
 
     Page<User> findAllAdmin(Pageable pageable);
+    Page<User> findAllAdmin(Pageable pageable, UserLevel userLevel, Long userId);
 
     Page<User> findAllAgent(Pageable pageable);
 

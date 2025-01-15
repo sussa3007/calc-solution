@@ -63,4 +63,23 @@ public class LogService {
         LogEntity saveLog = logJpaRepository.save(log);
         return saveLog.getLogId();
     }
+    public Long errorLog(
+            String activeUser,
+            LogType logType,
+            String  targetUsername
+    ) {
+        String message = LogType.createErrorLog(
+                activeUser,
+                targetUsername,
+                logType
+                );
+        LogEntity log = LogEntity.builder()
+                .logType(logType)
+                .message(message)
+                .activeUsername(activeUser)
+                .targetUsername(targetUsername)
+                .build();
+        LogEntity saveLog = logJpaRepository.save(log);
+        return saveLog.getLogId();
+    }
 }

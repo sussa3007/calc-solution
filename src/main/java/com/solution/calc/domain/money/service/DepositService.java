@@ -11,8 +11,11 @@ import com.solution.calc.domain.user.entity.BasicUser;
 import com.solution.calc.domain.user.entity.User;
 import com.solution.calc.domain.user.service.UserService;
 import com.solution.calc.exception.ServiceLogicException;
+import com.solution.calc.openapi.dto.AutoDepositRequestDto;
+import com.solution.calc.utils.BotHttpUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -23,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +40,11 @@ public class DepositService {
     private final IndexService indexService;
 
     private final LogService logService;
+
+    private final BotHttpUtils botHttpUtils;
+
+    @Value("${SYSTEM_PROPERTY}")
+    private String systemProperty;
 
     @Transactional(readOnly = true)
     public Page<DepositResponseDto> findAllDeposit(DepositSearchRequestDto dto, int page, Long officeId, UserLevel userLevel) {
@@ -59,8 +68,8 @@ public class DepositService {
     }
 
     @Transactional(readOnly = true)
-    public DepositResponseDto findDepositByTx(String txnId) {
-        return DepositResponseDto.of(moneyRepository.findDepositByTx(txnId));
+    public DepositApiResponseDto findDepositByTx(String txnId) {
+        return DepositApiResponseDto.of(moneyRepository.findDepositByTx(txnId));
     }
 
 
@@ -71,7 +80,101 @@ public class DepositService {
     }
 
     @Transactional
+    public boolean autoDeposit(Map data) {
+        String rname = (String) data.get("RNAME");
+        String rpay = (String) data.get("RPAY");
+        long balance = Long.parseLong(rpay);
+        String substring = UUID.randomUUID().toString().substring(0, 10);
+        if (data.containsKey("office")) {
+            String office = (String) data.get("office");
+            DepositPostRequestDto autoRequest = DepositPostRequestDto.builder()
+                    .depositUsername(office + substring)
+                    .depositName(rname)
+                    .depositBank("입금 계좌 확인 불가(비연동 업체)")
+                    .depositAccount("입금 계좌 확인 불가(비연동 업체)")
+                    .depositBalance(BigDecimal.valueOf(balance))
+                    .build();
+            User officeUser = userService.findUserEntity(office);
+            Long depositDataReturnDataId = createDepositDataReturnDataId(autoRequest, officeUser.getUserId());
+            DepositPatchRequestDto patchDto = DepositPatchRequestDto.builder()
+                    .depositDataId(depositDataReturnDataId)
+                    .depositStatus(DepositStatus.COMPLETE)
+                    .build();
+            patchDeposit(patchDto, UserLevel.ADMIN);
+            return true;
+        }
+        return false;
+    }
+
+    @Transactional
+    public boolean autoDeposit(AutoDepositRequestDto data) {
+        String office = data.getUsername();
+        try {
+            String rname = data.getDepositName();
+            String rpay = data.getBalance();
+            long balance = Long.parseLong(rpay);
+            String substring = UUID.randomUUID().toString().substring(0, 10);
+            DepositPostRequestDto autoRequest = DepositPostRequestDto.builder()
+                    .depositUsername(office + substring)
+                    .depositName(rname)
+                    .depositBank("입금 계좌 확인 불가(비연동 업체)")
+                    .depositAccount("입금 계좌 확인 불가(비연동 업체)")
+                    .depositBalance(BigDecimal.valueOf(balance))
+                    .build();
+            User officeUser = userService.findUserEntity(office);
+            Long depositDataReturnDataId = createDepositDataReturnDataId(autoRequest, officeUser.getUserId());
+            return true;
+        } catch (Exception e) {
+            logService.errorLog("admin", LogType.CREATE_DEPOSIT_ERROR, office);
+            return false;
+        }
+
+    }
+
+    @Transactional
     public DepositResponseDto setDepositComplete(Map data) {
+        String rname = (String) data.get("RNAME");
+        String rpay = (String) data.get("RPAY");
+        long balance = Long.parseLong(rpay);
+        if (data.containsKey("office")) {
+            String office = (String) data.get("office");
+            botHttpUtils.sendDepositAlarm(
+                    DepositAlarmBotRequestDto.of(systemProperty, office, rname, BigDecimal.valueOf(balance), DepositStatus.WAIT.name())
+            );
+        } else {
+            log.info("NON V3 RTPAY");
+        }
+
+        DepositData findDeposit = moneyRepository.findDepositByBalanceAndName(rname, BigDecimal.valueOf(balance));
+//        if (findDeposit.getDepositStatus().equals(DepositStatus.WAIT)) {
+//            findDeposit.setDepositStatus(DepositStatus.DEPOSIT_COMPLETE);
+//        }
+        boolean firstDeposit = moneyRepository.isFirstDeposit(findDeposit.getBasicUsername());
+        BigDecimal depositBalance = findDeposit.getDepositBalance();
+        BigDecimal bigDecimal = new BigDecimal("500000");
+
+
+        if (firstDeposit && depositBalance.compareTo(bigDecimal) >= 0) {
+            if (findDeposit.getDepositStatus().equals(DepositStatus.WAIT)) {
+                findDeposit.setDepositStatus(DepositStatus.DEPOSIT_COMPLETE);
+
+            }
+        } else {
+            if (findDeposit.getDepositStatus().equals(DepositStatus.WAIT)) {
+                DepositPatchRequestDto requestDto = DepositPatchRequestDto
+                        .builder().depositDataId(findDeposit.getDataId())
+                        .depositStatus(DepositStatus.COMPLETE)
+                        .build();
+                patchDeposit(requestDto, UserLevel.ADMIN);
+            }
+        }
+
+        DepositData saveDepositData = moneyRepository.saveDepositData(findDeposit);
+        return DepositResponseDto.of(saveDepositData);
+    }
+
+    @Transactional
+    public DepositResponseDto setDepositCompleteForBasic(Map data) {
         String rname = (String) data.get("RNAME");
         String rpay = (String) data.get("RPAY");
         long balance = Long.parseLong(rpay);
@@ -83,8 +186,9 @@ public class DepositService {
         return DepositResponseDto.of(saveDepositData);
     }
 
+
     @Transactional
-    public DepositResponseDto createDeposit(DepositPostRequestDto dto, Long officeId, UserLevel userLevel) {
+    public DepositApiResponseDto createDeposit(DepositPostRequestDto dto, Long officeId, UserLevel userLevel) {
         /*
          * 기업 회원의 하위 일반 회원에 이름, 계좌 중복 있으면 안됨
          * */
@@ -95,11 +199,16 @@ public class DepositService {
         if (balance < 10000 || !sub.equals("0000")) {
             throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_BALANCE);
         }
+        return createDepositData(dto, officeId);
+    }
+
+    private DepositApiResponseDto createDepositData(DepositPostRequestDto dto, Long officeId) {
         String nickName = dto.getDepositName();
         String depositBank = dto.getDepositBank();
         String depositAccount = dto.getDepositAccount();
         String depositUsername = dto.getDepositUsername();
-        if (moneyRepository.findDepositByUsernameAndStatus(depositUsername).isPresent()) throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_EXIST);
+        if (moneyRepository.findDepositByUsernameAndStatus(depositUsername).isPresent())
+            throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_EXIST);
         UserResponseDto office = userService.findUser(officeId);
         if (office.getUserStatus().equals(UserStatus.BLOCK) || office.getUserStatus().equals(UserStatus.INACTIVE)) {
             throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_INACTIVE);
@@ -107,17 +216,34 @@ public class DepositService {
         BasicUser basicUser = userService.findAndCreateBasicUser(depositUsername, nickName, depositBank, depositAccount, officeId);
         DepositData newDepositData = DepositData.create(dto, basicUser, office);
         DepositData depositData = moneyRepository.saveDepositData(newDepositData);
-        return DepositResponseDto.of(depositData);
+        return DepositApiResponseDto.of(depositData);
+    }
+
+    private Long createDepositDataReturnDataId(DepositPostRequestDto dto, Long officeId) {
+        String nickName = dto.getDepositName();
+        String depositBank = dto.getDepositBank();
+        String depositAccount = dto.getDepositAccount();
+        String depositUsername = dto.getDepositUsername();
+        if (moneyRepository.findDepositByUsernameAndStatus(depositUsername).isPresent())
+            throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_EXIST);
+        UserResponseDto office = userService.findUser(officeId);
+        if (office.getUserStatus().equals(UserStatus.BLOCK) || office.getUserStatus().equals(UserStatus.INACTIVE)) {
+            throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_INACTIVE);
+        }
+        BasicUser basicUser = userService.findAndCreateBasicUser(depositUsername, nickName, depositBank, depositAccount, officeId);
+        DepositData newDepositData = DepositData.create(dto, basicUser, office);
+        DepositData depositData = moneyRepository.saveDepositData(newDepositData);
+        return depositData.getDataId();
     }
 
     @Transactional
-    public DepositResponseDto patchDeposit(DepositPatchRequestDto dto, Long officeId, UserLevel userLevel) {
+    public DepositResponseDto patchDeposit(DepositPatchRequestDto dto, UserLevel userLevel) {
         // 입금 완료 시 취소 불가
         // 처리 완료 시 데시보드 데이터 반영
         // 처리 완료 시 요율 반영
         // 처리시 읿반 회원 데이터 토탈 입금 액 반영
         Long depositDataId = dto.getDepositDataId();
-        DepositStatus depositStatus = dto.getDepositStatus();
+        DepositStatus requestStatus = dto.getDepositStatus();
         DepositData findDeposit = moneyRepository.findDepositByIdForUpdate(depositDataId);
         DepositStatus currentStatus = findDeposit.getDepositStatus();
 
@@ -130,10 +256,10 @@ public class DepositService {
         Long agent1Id = findOffice.getAgent1Id();
         Long agent2Id = findOffice.getAgent2Id();
         Long agent3Id = findOffice.getAgent3Id();
-        double adminCommission = findOffice.getCommission()/100;
-        double agent1Commission = findOffice.getAgent1Commission()/100;
-        double agent2Commission = findOffice.getAgent2Commission()/100;
-        double agent3Commission = findOffice.getAgent3Commission()/100;
+        double adminCommission = findOffice.getCommission() / 100;
+        double agent1Commission = findOffice.getAgent1Commission() / 100;
+        double agent2Commission = findOffice.getAgent2Commission() / 100;
+        double agent3Commission = findOffice.getAgent3Commission() / 100;
         BigDecimal adminCommissionBalance = depositBalance.multiply(BigDecimal.valueOf(adminCommission));
         BigDecimal agent1CommissionBalance = depositBalance.multiply(BigDecimal.valueOf(agent1Commission));
         BigDecimal agent2CommissionBalance = depositBalance.multiply(BigDecimal.valueOf(agent2Commission));
@@ -141,11 +267,11 @@ public class DepositService {
 
         BigDecimal totalCommission = adminCommissionBalance.add(agent1CommissionBalance).add(agent2CommissionBalance).add(agent3CommissionBalance);
         BigDecimal resultBalance = depositBalance.subtract(totalCommission);
-        if (depositStatus.equals(DepositStatus.COMPLETE) && currentStatus.equals(DepositStatus.COMPLETE)) {
+        if (requestStatus.equals(DepositStatus.COMPLETE) && currentStatus.equals(DepositStatus.COMPLETE)) {
             throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_COMPLETE);
         }
 
-        if (currentStatus.equals(DepositStatus.COMPLETE) && depositStatus.equals(DepositStatus.CANCEL)) {
+        if (currentStatus.equals(DepositStatus.COMPLETE) && requestStatus.equals(DepositStatus.CANCEL)) {
             BigDecimal officeResultBalance = findOffice.getBalance().subtract(resultBalance);
             if (officeResultBalance.signum() < 0) {
                 throw new ServiceLogicException(ErrorCode.BAD_REQUEST_DEPOSIT_CANCEL);
@@ -164,11 +290,11 @@ public class DepositService {
             findOffice.setAgent2CommissionBalance(findOffice.getAgent2CommissionBalance().subtract(agent2CommissionBalance));
             findOffice.setAgent3CommissionBalance(findOffice.getAgent3CommissionBalance().subtract(agent3CommissionBalance));
             userService.delegateSaveUser(findOffice);
-            indexService.cancelDeposit(depositBalance, officeTrueId, adminId,userLevel);
-            indexService.cancelCommission(totalCommission, officeTrueId, adminId,userLevel);
+            indexService.cancelDeposit(depositBalance, officeTrueId, adminId, userLevel);
+            indexService.cancelCommission(totalCommission, officeTrueId, adminId, userLevel);
             logService.saveCancelLog("admin", LogType.DEPOSIT_COMPLETE_CANCEL, findDeposit.getBasicUsername(), findDeposit.getTxnId());
             userService.updateBasicUserSubTotalBalance(findDeposit.getBasicUserId(), findDeposit.getDepositBalance());
-        } else if (depositStatus.equals(DepositStatus.COMPLETE)) {
+        } else if (requestStatus.equals(DepositStatus.COMPLETE)) {
             setAddUserCommission(adminId, adminCommissionBalance);
             setAddUserCommission(agent1Id, agent1CommissionBalance);
             setAddUserCommission(agent2Id, agent2CommissionBalance);
@@ -183,12 +309,17 @@ public class DepositService {
             findOffice.setAgent2CommissionBalance(findOffice.getAgent2CommissionBalance().add(agent2CommissionBalance));
             findOffice.setAgent3CommissionBalance(findOffice.getAgent3CommissionBalance().add(agent3CommissionBalance));
             userService.delegateSaveUser(findOffice);
-            indexService.completeDeposit(depositBalance, officeTrueId, adminId,userLevel);
-            indexService.completeCommission(totalCommission, officeTrueId, adminId,userLevel);
+            indexService.completeDeposit(depositBalance, officeTrueId, adminId, userLevel);
+            indexService.completeCommission(totalCommission, officeTrueId, adminId, userLevel);
             userService.updateBasicUserTotalBalance(findDeposit.getBasicUserId(), findDeposit.getDepositBalance());
         }
         findDeposit.setCompleteAt(LocalDateTime.now());
-        findDeposit.setDepositStatus(depositStatus);
+        findDeposit.setDepositStatus(requestStatus);
+        botHttpUtils.sendDepositRequest(
+                DepositBotRequestDto.of(
+                        findDeposit, systemProperty
+                )
+        );
 
         return DepositResponseDto.of(moneyRepository.saveDepositData(findDeposit));
     }
@@ -208,8 +339,14 @@ public class DepositService {
         if (userId != null && userId != 0) {
             User agent = userService.findUserEntityForUpdate(userId);
             if (agent != null) {
-                agent.setBalance(agent.getBalance().subtract(commissionBalance));
-                userService.delegateSaveUser(agent);
+                if (agent.getBalance().compareTo(commissionBalance) >= 0) {
+                    agent.setBalance(agent.getBalance().subtract(commissionBalance));
+                    userService.delegateSaveUser(agent);
+                } else {
+                    log.error("User = {}, CommissionBalance = {}", agent.getUsername(), commissionBalance);
+                    throw new ServiceLogicException(ErrorCode.BAD_REQUEST_MONEY_COLLECT);
+                }
+
             }
         }
 
